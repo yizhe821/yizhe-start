@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f2f2f7" />
+    <meta name="description" content="一个简单、自在的个人起始页。搜索、收藏，让每次出发更轻松。" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Yizhe · 起始页</title>
+    <script>
+      try {
+        const pref = JSON.parse(localStorage.getItem('yizhe-start:data:v1') || 'null')?.preferences?.appearance;
+        document.documentElement.classList.toggle('dark', pref === 'dark' || ((!pref || pref === 'system') && matchMedia('(prefers-color-scheme: dark)').matches));
+      } catch { document.documentElement.classList.toggle('dark', matchMedia('(prefers-color-scheme: dark)').matches); }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
