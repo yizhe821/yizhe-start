@@ -52,11 +52,13 @@ button, a, input, select { outline-offset: 4px; }
 .theme-control, .toolbar-button { display: inline-flex; align-items: center; gap: 7px; color: var(--secondary); font-size: 12px; min-height: 36px; border-radius: 10px; padding: 0 10px; }
 .toolbar-button:hover, .theme-control:hover { background: var(--surface); }
 .theme-control select { background: transparent; border: 0; color: inherit; max-width: 98px; padding-right: 2px; }
-.hero { max-width: 640px; margin: 58px auto 84px; text-align: center; }
-.date-time { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.clock-time { font-size: clamp(48px, 7vw, 72px); line-height: 1.15; font-weight: 550; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
-.clock-date { margin: 0; color: var(--secondary); font-size: 14px; letter-spacing: 1px; }
-.search-form { margin-top: 35px; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 28px; margin: 28px auto 48px; }
+.date-time { display: flex; align-items: center; gap: 16px; }
+.analog-clock { width: 84px; flex-shrink: 0; border: 1px solid var(--line); --cui-bg-color: var(--surface); --cui-primary-color: var(--text); --cui-accent-color: var(--accent); --cui-tick-color: var(--muted); --cui-number-color: var(--secondary); --cui-font-family: inherit; }
+.clock-copy { display: flex; flex-direction: column; gap: 6px; min-width: 0; text-align: left; }
+.clock-time { font-size: 30px; line-height: 1.15; font-weight: 550; letter-spacing: -.8px; font-variant-numeric: tabular-nums; }
+.clock-date { margin: 0; color: var(--secondary); font-size: 12px; letter-spacing: .3px; white-space: nowrap; }
+.search-form { min-width: 0; margin: 0; }
 .search-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 6px; background: var(--surface); border-radius: 18px; border: 1px solid color-mix(in srgb, var(--line), transparent 35%); box-shadow: 0 6px 26px rgba(44, 63, 103, .04); }
 .search-row:focus-within { border-color: color-mix(in srgb, var(--accent), transparent 65%); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent), transparent 94%); }
 .hero-search { flex: 1; min-width: 0; padding: 0 !important; height: 42px !important; background: transparent !important; }
@@ -163,10 +165,12 @@ button, a, input, select { outline-offset: 4px; }
 .feedback-toast { z-index: 1000 !important; pointer-events: none; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise-in { from { transform: translateY(7px) scale(.99); } to { transform: none; } }
-@media (min-width: 1440px) { .hero { margin-top: 82px; margin-bottom: 94px; } }
 @media (max-width: 767px) {
   .page-shell { padding: 0 20px; }
-  .hero { margin-top: 52px; margin-bottom: 60px; }
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 24px; margin-bottom: 36px; }
+  .date-time { justify-self: end; gap: 12px; }
+  .analog-clock { width: 64px; }
+  .clock-time { font-size: 26px; }
   .brand-secondary { display: none; }
   .collection-actions { gap: 2px; }
   .collection-actions button { padding: 0 10px !important; }
@@ -180,10 +184,8 @@ button, a, input, select { outline-offset: 4px; }
   .theme-control > svg { display: none; }
   .brand { font-size: 13px; gap: 7px; }
   .brand-mark { width: 29px; height: 29px; font-size: 24px; border-radius: 9px; }
-  .hero { margin-top: 39px; margin-bottom: 49px; }
-  .clock-time { font-size: 48px; letter-spacing: -1.5px; }
-  .clock-date { font-size: 12px; letter-spacing: .5px; }
-  .search-form { margin-top: 28px; }
+  .hero { margin-top: 18px; margin-bottom: 32px; }
+  .clock-date { font-size: 11px; }
   .collection-header { flex-wrap: wrap; gap: 14px; margin-bottom: 20px; }
   .collection h2 { font-size: 19px; }
   .section-eyebrow { font-size: 8px; letter-spacing: 1px; }

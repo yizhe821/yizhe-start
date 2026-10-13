@@ -96,6 +96,16 @@ test('search, IME, appearance and desktop/mobile layout', async ({ page }) => {
   for (const width of [360, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const search = (await page.locator('.search-form').boundingBox())!;
+    const clock = (await page.locator('.date-time').boundingBox())!;
+    expect(search.y).toBeLessThan(180);
+    if (width >= 768) {
+      expect(clock.x).toBeGreaterThan(search.x + search.width);
+      expect(Math.abs(clock.y + clock.height / 2 - search.y - search.height / 2)).toBeLessThan(1);
+    } else {
+      expect(clock.y).toBeGreaterThan(search.y + search.height);
+    }
+    await expect(page.locator('.analog-clock')).toBeVisible();
   }
   await page.getByLabel('外观主题').selectOption('light');
   await expect(page.locator('html')).not.toHaveClass('dark');
@@ -113,9 +123,13 @@ test('clock follows local time across midnight and engine picker supports keyboa
   await page.goto('./');
   await expect(page.locator('.clock-time')).toHaveText('23:59:59');
   await expect(page.locator('.clock-date')).toHaveText('2026年10月13日星期二');
+  await expect(page.getByRole('img', { name: '当前时间 23:59:59', exact: true })).toBeVisible();
+  expect(await page.locator('.clock-ui__hand--second').evaluate(element => (element as HTMLElement).style.getPropertyValue('--angle'))).toBe('354');
   await page.clock.runFor(1000);
   await expect(page.locator('.clock-time')).toHaveText('00:00:00');
   await expect(page.locator('.clock-date')).toHaveText('2026年10月14日星期三');
+  await expect(page.getByRole('img', { name: '当前时间 00:00:00', exact: true })).toBeVisible();
+  expect(await page.locator('.clock-ui__hand--second').evaluate(element => (element as HTMLElement).style.getPropertyValue('--angle'))).toBe('0');
 
   const picker = page.getByRole('button', { name: '搜索引擎：Bing', exact: true });
   await picker.focus();

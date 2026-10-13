@@ -15,6 +15,7 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@clock-ui/vue": "0.2.0",
     "@tabler/icons-vue": "^3.49.0",
     "konsta": "5.5.0",
     "vue": "^3.5.43"

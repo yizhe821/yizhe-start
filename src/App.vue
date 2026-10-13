@@ -151,7 +151,6 @@ watch(query, () => nextTick(labelSearch));
 
       <main>
         <section class="hero" aria-label="搜索与日期时间">
-          <DateTime />
           <form class="search-form" @submit.prevent="submitSearch" @keydown="searchKey" @compositionstart="composing = true" @compositionend="composing = false">
             <div class="search-row">
               <SearchEnginePicker :engine="data.preferences.searchEngine" @change="changeEngine" />
@@ -159,6 +158,7 @@ watch(query, () => nextTick(labelSearch));
               <k-button class="search-submit" type="submit" aria-label="搜索"><AppIcon name="arrow" :size="21" /></k-button>
             </div>
           </form>
+          <DateTime />
         </section>
 
         <section class="collection" aria-labelledby="collection-title">
