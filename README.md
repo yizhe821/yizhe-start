@@ -36,17 +36,28 @@ npm run test:e2e
 - 嵌套文件夹与书签的增删改、菜单移动及同级排序。
 - 居中文件夹面板、面包屑和深层路径折叠。
 - 浅色、深色、跟随系统；支持键盘焦点与减少动画模式。
-- 收藏只保存在当前浏览器。JSON 导出和确认导入，导入上限 10 MB。
+- 未登录时收藏保存在当前浏览器；使用已有 Supabase 邮箱账号登录后，收藏和偏好按账号保存到云端，支持跨设备读取。
+- JSON 导出和确认导入，导入上限 10 MB；支持确认迁移本地收藏到云端。
 - 数据损坏时保留原文，可下载原始数据、导入有效备份或显式重置。
 - 同源标签页同步，写入失败保留状态与表单。
 
-删除文件夹会在确认后删除整棵子树，操作无法撤销，重要收藏请定期导出。清理浏览器站点数据会清除收藏；换域名或设备时通过备份迁移。
+删除文件夹会在确认后删除整棵子树，操作无法撤销，重要收藏请定期导出。清理浏览器站点数据会清除本地收藏；云端收藏可在重新登录后读取。
+
+## Supabase 配置
+
+项目已配置提供的 Supabase URL 和公开 publishable key。启用云端存储前，在该项目的 SQL Editor 执行一次 [初始化 SQL](./supabase/yizhestart_init.sql)。脚本只新增 `yizhestart_` 对象，不改动其他项目的数据或 Auth 配置。账号池由两个项目共用，本网站只提供已有账号登录。
+
+完整初始化步骤、权限和同步机制见 [Supabase 接入说明](./supabase/README.md)。
 
 ## GitHub Pages
 
 仓库： https://github.com/yizhe821/yizhe-start
 
 在仓库 Settings → Pages → Build and deployment 中选择 **GitHub Actions**。推送 `main` 后，工作流执行类型检查、业务测试和构建，再发布 `dist`。
+
+编写或修改代码后的发布流程是：本地检查通过 → 提交修改 → 推送到 `main` → 等待 **Publish GitHub Pages** 工作流的 `build` 和 `deploy` 均成功 → 打开线上页面验收。仅修改本地文件、运行构建或创建本地提交，都不会更新线上网站。
+
+部署由 [.github/workflows/deploy.yml](./.github/workflows/deploy.yml) 自动完成，无需手动上传 `dist`。也可以在仓库 **Actions → Publish GitHub Pages → Run workflow** 中选择 `main` 手动部署最新已推送版本。完整命令、首次配置和排查方式见 [开发文档的部署章节](./DEVELOPMENT.md#github-pages-部署)。
 
 默认站点地址： https://yizhe821.github.io/yizhe-start/
 

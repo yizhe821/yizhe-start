@@ -10,7 +10,17 @@ import Breadcrumbs from './components/Breadcrumbs.vue';
 import { useStart } from './composables/useStart';
 import { children, deleteEntry, descendants, emptyData, engines, moveEntry, pathTo, reorderEntry, saveEntry, searchUrl, type AppData, type Appearance, type Engine, type Entry, type ParentId } from './domain/model';
 
-const { data, dark, toast, storageError, damagedRaw, notify, commit, parseImport } = useStart();
+const { data, dark, toast, storageError, damagedRaw, notify, commit, parseImport,
+  user, cloudLoading, cloudReady, cloudErrorMessage, saving, authenticating, authError, sessionReady,
+  signIn, signOut, refreshCloud, localBackup } = useStart();
+const accountOpen = ref(false);
+const email = ref('');
+const password = ref('');
+const syncLabel = computed(() => !sessionReady.value ? '恢复登录中…' : !user.value ? '收藏保存在当前浏览器' : saving.value ? '正在保存到云端…' : cloudLoading.value ? '正在同步云端收藏…' : cloudErrorMessage.value ? '云端连接需要处理' : '收藏已连接云端');
+async function login() {
+  if (await signIn(email.value, password.value)) { password.value = ''; notify('已登录，正在读取云端收藏。'); }
+}
+function closeAccount() { if (!authenticating.value && !saving.value) { accountOpen.value = false; password.value = ''; } }
 const query = ref('');
 const composing = ref(false);
 const fileInput = ref<HTMLInputElement>();
@@ -31,8 +41,21 @@ const targetPath = computed(() => pathTo(data.value.nodes, moveTarget.value));
 type Editor = { id?: string; kind: Entry['kind']; title: string; url: string; parentId: ParentId; initialTitle: string; initialUrl: string };
 const editor = ref<Editor | null>(null);
 const editorError = ref('');
-type Confirmation = { title: string; message: string; label: string; danger?: boolean; action: () => void };
+type Confirmation = { title: string; message: string; label: string; danger?: boolean; action: () => void | Promise<void> };
 const confirmation = ref<Confirmation | null>(null);
+
+watch(() => user.value?.id, () => {
+  editor.value = null; confirmation.value = null; actionId.value = null; moveId.value = null;
+  folderOpen.value = false; activeFolder.value = null;
+});
+function migrateLocal() {
+  try {
+    const backup = localBackup();
+    confirmation.value = { title: '将本地收藏保存到此账号？', message: `本地有 ${backup.nodes.length} 个条目。这会替换此账号的全部云端收藏和偏好，本地原数据继续保留。建议先导出当前云端收藏。`, label: '确认迁移', action: async () => {
+      if (await commit(backup)) notify('本地收藏已保存到云端，本地原数据仍保留。');
+    } };
+  } catch (error) { notify(error instanceof Error ? error.message : '无法读取本地收藏。'); }
+}
 
 watch(() => data.value.nodes, (nodes, oldNodes) => {
   if (activeFolder.value) {
@@ -49,8 +72,8 @@ watch(() => data.value.nodes, (nodes, oldNodes) => {
   if (moveId.value && !nodes.some(n => n.id === moveId.value)) { moveId.value = null; notify('待移动条目已不存在。'); }
   if (moveTarget.value && !nodes.some(n => n.id === moveTarget.value && n.kind === 'folder')) moveTarget.value = null;
 });
-function perform(action: () => AppData, message: string) {
-  try { if (commit(action())) { notify(message); return true; } } catch (error) { notify(error instanceof Error ? error.message : '操作失败。'); }
+async function perform(action: () => AppData, message: string) {
+  try { if (await commit(action())) { notify(message); return true; } } catch (error) { notify(error instanceof Error ? error.message : '操作失败。'); }
   return false;
 }
 function openFolder(id: string) { activeFolder.value = id; folderOpen.value = true; }
@@ -70,15 +93,16 @@ function openEditor(kind: Entry['kind'], node?: Entry) {
   editor.value = { id: node?.id, kind, title: node?.title ?? '', url: node?.kind === 'bookmark' ? node.url : '', parentId: node ? node.parentId : folderOpen.value ? activeFolder.value : null, initialTitle: node?.title ?? '', initialUrl: node?.kind === 'bookmark' ? node.url : '' };
 }
 function closeEditor() {
+  if (saving.value) return;
   if (editor.value && (editor.value.title !== editor.value.initialTitle || editor.value.url !== editor.value.initialUrl)) {
     confirmation.value = { title: '放弃修改？', message: '还有未保存的内容，关闭后这些修改会丢失。', label: '放弃修改', danger: true, action: () => { editor.value = null; } };
   } else editor.value = null;
 }
-function saveEditor() {
+async function saveEditor() {
   if (!editor.value) return;
   try {
     const next = saveEntry(data.value, editor.value);
-    if (commit(next)) { editor.value = null; notify('已保存到收藏。'); }
+    if (await commit(next)) { editor.value = null; notify('已保存到收藏。'); }
   } catch (error) { editorError.value = error instanceof Error ? error.message : '请检查填写的内容。'; }
 }
 function deleteRequest(node: Entry) {
@@ -94,11 +118,11 @@ function deleteRequest(node: Entry) {
   } };
 }
 function openMove(node: Entry) { actionId.value = null; moveId.value = node.id; moveTarget.value = node.parentId; }
-function confirmMove() {
-  if (moveId.value && perform(() => moveEntry(data.value, moveId.value!, moveTarget.value), '已移动。')) moveId.value = null;
+async function confirmMove() {
+  if (moveId.value && await perform(() => moveEntry(data.value, moveId.value!, moveTarget.value), '已移动。')) moveId.value = null;
 }
-function reorder(node: Entry, direction: -1 | 1) {
-  if (perform(() => reorderEntry(data.value, node.id, direction), '顺序已调整。')) actionId.value = null;
+async function reorder(node: Entry, direction: -1 | 1) {
+  if (await perform(() => reorderEntry(data.value, node.id, direction), '顺序已调整。')) actionId.value = null;
 }
 function canReorder(node: Entry, direction: -1 | 1) {
   const siblings = children(data.value.nodes, node.parentId); return !!siblings[siblings.findIndex(n => n.id === node.id) + direction];
@@ -115,12 +139,12 @@ async function importFile(event: Event) {
     if (file.size > 10 * 1024 * 1024) throw new Error('备份超过 10 MB，请检查文件是否正确。');
     const imported = parseImport(await file.text());
     const folders = imported.nodes.filter(n => n.kind === 'folder').length;
-    confirmation.value = { title: '替换当前收藏？', message: `备份包含 ${folders} 个文件夹、${imported.nodes.length - folders} 个书签。导入会替换全部收藏和偏好设置。`, label: '确认导入', action: () => {
-      if (commit(imported, true)) { folderOpen.value = false; activeFolder.value = null; notify('备份已导入。'); }
+    confirmation.value = { title: '替换当前收藏？', message: `备份包含 ${folders} 个文件夹、${imported.nodes.length - folders} 个书签。导入会替换${user.value ? '此账号的云端' : '本地'}全部收藏和偏好设置。`, label: '确认导入', action: async () => {
+      if (await commit(imported, true)) { folderOpen.value = false; activeFolder.value = null; notify('备份已导入。'); }
     } };
   } catch (error) { notify(error instanceof Error ? error.message : '无法读取该备份。'); }
 }
-function resetRequest() { confirmation.value = { title: '重置本地数据？', message: '建议先下载异常数据留作备份。确认后将创建一个空的收藏目录。', label: '重置', danger: true, action: () => { if (commit(emptyData(), true)) { folderOpen.value = false; activeFolder.value = null; notify('本地数据已重置。'); } } }; }
+function resetRequest() { confirmation.value = { title: '重置本地数据？', message: '建议先下载异常数据留作备份。确认后将创建一个空的收藏目录。', label: '重置', danger: true, action: async () => { if (await commit(emptyData(), true)) { folderOpen.value = false; activeFolder.value = null; notify('本地数据已重置。'); } } }; }
 function acceptConfirmation() { const pending = confirmation.value; confirmation.value = null; pending?.action(); }
 function inputValue(event: Event) { return (event.target as HTMLInputElement).value; }
 function labelSearch() {
@@ -141,12 +165,18 @@ watch(query, () => nextTick(labelSearch));
           <label class="theme-control"><AppIcon name="sun" :size="17" /><span class="sr-only">外观主题</span><select :value="data.preferences.appearance" aria-label="外观主题" @change="changeAppearance"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
           <button type="button" class="toolbar-button" @click="fileInput?.click()"><AppIcon name="download" :size="17" /><span>导入</span></button>
           <button type="button" class="toolbar-button" @click="exportData"><AppIcon name="upload" :size="17" /><span>导出</span></button>
+          <button type="button" class="toolbar-button account-button" @click="accountOpen = true" :aria-label="user ? '管理云端账号' : '登录云端账号'"><AppIcon name="cloud" :size="17" /><span>{{ user ? '账号' : '登录' }}</span></button>
         </div>
       </header>
 
       <section v-if="storageError" class="storage-warning" role="alert">
         <strong>本地数据需要处理</strong><p>{{ storageError }} 原始数据没有被覆盖。</p>
         <div class="flex flex-wrap gap-2"><k-button v-if="damagedRaw !== null" type="button" outline @click="download(damagedRaw!, 'yizhe-start-recovery.json')">下载原始数据</k-button><k-button type="button" outline @click="fileInput?.click()">导入备份</k-button><k-button type="button" clear @click="resetRequest">重置</k-button></div>
+      </section>
+
+      <section v-if="cloudErrorMessage" class="storage-warning" role="alert">
+        <strong>云端连接需要处理</strong><p>{{ cloudErrorMessage }}</p>
+        <k-button type="button" outline :disabled="cloudLoading || saving" @click="refreshCloud">重试连接</k-button>
       </section>
 
       <main>
@@ -174,9 +204,31 @@ watch(query, () => nextTick(labelSearch));
           </div>
         </section>
       </main>
-      <footer class="page-footer"><span><AppIcon name="shield" :size="14" />收藏保存在当前浏览器</span><span>{{ stats.folders }} 个文件夹<span class="footer-dot">·</span>{{ stats.bookmarks }} 个书签</span></footer>
+      <footer class="page-footer"><span aria-live="polite"><AppIcon :name="user ? 'cloud' : 'shield'" :size="14" />{{ syncLabel }}</span><span>{{ stats.folders }} 个文件夹<span class="footer-dot">·</span>{{ stats.bookmarks }} 个书签</span></footer>
       <input ref="fileInput" class="sr-only" type="file" accept=".json,application/json" aria-label="导入收藏备份" tabindex="-1" @change="importFile" />
     </div>
+
+    <Modal v-if="accountOpen" :title="user ? '云端账号' : '登录云端账号'" @close="closeAccount">
+      <template v-if="user">
+        <p class="account-email">{{ user.email }}</p>
+        <p class="dialog-description">{{ syncLabel }}。登录同一账号可在不同设备使用收藏。</p>
+        <p v-if="cloudErrorMessage" class="form-error" role="alert">{{ cloudErrorMessage }}</p>
+        <div class="account-actions">
+          <k-button type="button" outline :disabled="cloudLoading || saving" @click="refreshCloud">同步最新收藏</k-button>
+          <k-button type="button" outline :disabled="!cloudReady || cloudLoading || saving" @click="migrateLocal">迁移本地收藏到云端</k-button>
+          <k-button type="button" clear :disabled="saving || authenticating" @click="signOut">退出登录</k-button>
+        </div>
+      </template>
+      <form v-else @submit.prevent="login">
+        <p class="dialog-description">使用已有的 Supabase 邮箱账号登录，收藏按账号独立保存。未登录时可继续使用本地收藏。</p>
+        <k-list strong inset class="editor-list">
+          <k-list-input label="邮箱"><template #input><input v-model="email" class="field-input" aria-label="邮箱" type="email" autocomplete="username" data-initial-focus required :disabled="authenticating" /></template></k-list-input>
+          <k-list-input label="密码"><template #input><input v-model="password" class="field-input" aria-label="密码" type="password" autocomplete="current-password" required :disabled="authenticating" /></template></k-list-input>
+        </k-list>
+        <p v-if="authError" class="form-error" role="alert">{{ authError }}</p>
+        <k-button type="submit" class="account-submit" :disabled="authenticating || !sessionReady">{{ authenticating ? '登录中…' : '登录并同步' }}</k-button>
+      </form>
+    </Modal>
 
     <Modal v-if="folderOpen" :title="currentPath.at(-1)?.title ?? '我的收藏'" wide @close="folderOpen = false">
       <template #eyebrow><Breadcrumbs :path="currentPath" @navigate="navigateFolder" /></template>
@@ -199,7 +251,7 @@ watch(query, () => nextTick(labelSearch));
         </k-list>
         <p v-if="editorError" class="form-error" role="alert">{{ editorError }}</p>
       </form>
-      <template #footer><k-button type="button" clear @click="closeEditor">取消</k-button><k-button type="submit" form="entry-form">保存</k-button></template>
+      <template #footer><k-button type="button" clear :disabled="saving" @click="closeEditor">取消</k-button><k-button type="submit" form="entry-form" :disabled="saving">{{ saving ? '保存中…' : '保存' }}</k-button></template>
     </Modal>
 
     <Modal v-if="moveNode" :title="`移动“${moveNode.title}”`" @close="moveId = null">
