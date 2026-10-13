@@ -14,14 +14,14 @@ function onKey(event: KeyboardEvent) {
   if (event.key === 'Tab') {
     const items = focusableElements(layer.value);
     const first = items[0]; const last = items.at(-1);
-    if (!first) { event.preventDefault(); layer.value.focus(); }
-    else if (event.shiftKey && (document.activeElement === first || document.activeElement === layer.value)) { event.preventDefault(); last?.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    if (!first) { event.preventDefault(); layer.value.focus({ preventScroll: true }); }
+    else if (event.shiftKey && (document.activeElement === first || document.activeElement === layer.value)) { event.preventDefault(); last?.focus({ preventScroll: true }); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus({ preventScroll: true }); }
   }
 }
 function guardFocus(event: FocusEvent) {
   if (layer.value && isTopLayer(layer.value) && !layer.value.contains(event.target as Node)) {
-    (focusableElements(layer.value)[0] ?? layer.value).focus();
+    (focusableElements(layer.value)[0] ?? layer.value).focus({ preventScroll: true });
   }
 }
 onMounted(async () => {
@@ -30,14 +30,14 @@ onMounted(async () => {
   document.addEventListener('keydown', onKey, true);
   document.addEventListener('focusin', guardFocus);
   await nextTick();
-  (layer.value!.querySelector<HTMLElement>('[data-initial-focus]') ?? focusableElements(layer.value!)[0] ?? layer.value!).focus();
+  (layer.value!.querySelector<HTMLElement>('[data-initial-focus]') ?? focusableElements(layer.value!)[0] ?? layer.value!).focus({ preventScroll: true });
 });
 onUnmounted(() => {
   document.removeEventListener('keydown', onKey, true);
   document.removeEventListener('focusin', guardFocus);
   if (mountedElement) unregisterLayer(mountedElement);
-  if (opener?.isConnected && !opener.closest('[inert]')) opener.focus();
-  else document.querySelector<HTMLElement>('#home-link')?.focus();
+  if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
+  else document.querySelector<HTMLElement>('#home-link')?.focus({ preventScroll: true });
 });
 </script>
 <template>

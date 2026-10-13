@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+test.use({ timezoneId: 'Asia/Shanghai' });
+
 async function createFolder(page: Page, title: string) {
   await page.getByRole('button', { name: '新建文件夹', exact: true }).click();
   await page.getByLabel('名称', { exact: true }).fill(title);
@@ -76,7 +78,9 @@ test('search, IME, appearance and desktop/mobile layout', async ({ page }) => {
   expect(await page.evaluate(() => (window as any).__opened.length)).toBe(0);
   await page.getByLabel('搜索关键词').dispatchEvent('compositionend');
   for (const engine of ['Bing', 'Google', 'Yandex']) {
+    await page.getByRole('button', { name: /^搜索引擎：/ }).click();
     await page.getByRole('button', { name: engine, exact: true }).click();
+    await expect(page.getByRole('group', { name: '选择搜索引擎' })).toHaveCount(0);
     await page.getByRole('button', { name: '搜索', exact: true }).click();
     requests.push(await page.evaluate(() => (window as any).__opened.at(-1)));
   }
@@ -88,7 +92,7 @@ test('search, IME, appearance and desktop/mobile layout', async ({ page }) => {
   await expect(page.locator('html')).toHaveClass('dark');
   await page.reload();
   await expect(page.locator('html')).toHaveClass('dark');
-  await expect(page.getByRole('button', { name: 'Yandex', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: '搜索引擎：Yandex', exact: true })).toBeVisible();
   for (const width of [360, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -100,6 +104,62 @@ test('search, IME, appearance and desktop/mobile layout', async ({ page }) => {
   await page.screenshot({ path: '.cache/preview-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 360, height: 900 });
   await page.screenshot({ path: '.cache/preview-mobile.png', fullPage: true });
+});
+
+test('clock follows local time across midnight and engine picker supports keyboard and dismissal', async ({ page }) => {
+  const start = new Date('2026-10-13T23:59:59+08:00');
+  await page.clock.install({ time: new Date(start.getTime() - 1000) });
+  await page.clock.pauseAt(start);
+  await page.goto('./');
+  await expect(page.locator('.clock-time')).toHaveText('23:59:59');
+  await expect(page.locator('.clock-date')).toHaveText('2026年10月13日星期二');
+  await page.clock.runFor(1000);
+  await expect(page.locator('.clock-time')).toHaveText('00:00:00');
+  await expect(page.locator('.clock-date')).toHaveText('2026年10月14日星期三');
+
+  const picker = page.getByRole('button', { name: '搜索引擎：Bing', exact: true });
+  await picker.focus();
+  await picker.press('ArrowDown');
+  await expect(page.getByRole('button', { name: 'Bing', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: '搜索引擎：Google', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('group', { name: '选择搜索引擎' })).toHaveCount(0);
+  await page.getByRole('button', { name: '搜索引擎：Google', exact: true }).click();
+  await page.getByLabel('搜索关键词').click();
+  await expect(page.getByRole('group', { name: '选择搜索引擎' })).toHaveCount(0);
+});
+
+test('scrolling page stays aligned through nested dialogs and editor focus has no outline', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 520 });
+  await page.goto('./');
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  expect(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight)).toBe(true);
+  await page.getByRole('button', { name: '新建文件夹', exact: true }).scrollIntoViewIfNeeded();
+  const initial = await page.locator('.page-shell').boundingBox();
+  const scrollY = await page.evaluate(() => window.scrollY);
+  await page.getByRole('button', { name: '新建文件夹', exact: true }).click();
+  const title = page.getByLabel('名称', { exact: true });
+  await expect(title).toBeFocused();
+  await expect(title).toHaveCSS('outline-style', 'none');
+  await expect(title).toHaveCSS('box-shadow', 'none');
+  await expect(page.getByText('用一个名字，整理你的收藏。', { exact: true })).toHaveCount(0);
+  expect((await page.locator('.page-shell').boundingBox())!.x).toBe(initial!.x);
+  expect((await page.locator('.page-shell').boundingBox())!.width).toBe(initial!.width);
+  await title.fill('未保存');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog').last()).toContainText('放弃修改');
+  expect((await page.locator('.page-shell').boundingBox())!.x).toBe(initial!.x);
+  await page.getByRole('button', { name: '取消', exact: true }).click();
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '放弃修改', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await page.locator('.page-shell').boundingBox())!.x).toBe(initial!.x);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('');
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollY);
 });
 
 test('damaged data is retained and import requires confirmation', async ({ page }) => {

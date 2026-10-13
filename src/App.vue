@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { kApp, kButton, kDialog, kDialogButton, kList, kListInput, kListButton, kSearchbar, kSegmented, kSegmentedButton, kToast } from 'konsta/vue';
+import { kApp, kButton, kDialog, kDialogButton, kList, kListInput, kListButton, kSearchbar, kToast } from 'konsta/vue';
+import DateTime from './components/DateTime.vue';
+import SearchEnginePicker from './components/SearchEnginePicker.vue';
 import AppIcon from './components/AppIcon.vue';
 import Modal from './components/Modal.vue';
 import EntryGrid from './components/EntryGrid.vue';
@@ -148,16 +150,14 @@ watch(query, () => nextTick(labelSearch));
       </section>
 
       <main>
-        <section class="hero" aria-labelledby="hero-title">
-          <span class="hero-eyebrow"><span class="status-dot"></span> YOUR LITTLE CORNER OF THE INTERNET</span>
-          <h1 id="hero-title">从这里，<span>出发。</span></h1>
-          <p class="hero-subtitle">搜索世界，收藏你的日常。</p>
+        <section class="hero" aria-label="搜索与日期时间">
+          <DateTime />
           <form class="search-form" @submit.prevent="submitSearch" @keydown="searchKey" @compositionstart="composing = true" @compositionend="composing = false">
             <div class="search-row">
+              <SearchEnginePicker :engine="data.preferences.searchEngine" @change="changeEngine" />
               <k-searchbar class="hero-search" input-id="start-search" placeholder="想去哪里？搜索一下" :value="query" @input="query = inputValue($event)" @clear="query = ''" />
               <k-button class="search-submit" type="submit" aria-label="搜索"><AppIcon name="arrow" :size="21" /></k-button>
             </div>
-            <div class="engine-row"><span class="engine-caption">搜索引擎</span><k-segmented strong class="engine-switch" role="group" aria-label="搜索引擎"><k-segmented-button v-for="engine in engines" :key="engine.id" type="button" :active="data.preferences.searchEngine === engine.id" :aria-pressed="data.preferences.searchEngine === engine.id" @click="changeEngine(engine.id)">{{ engine.label }}</k-segmented-button></k-segmented></div>
           </form>
         </section>
 
@@ -192,7 +192,7 @@ watch(query, () => nextTick(labelSearch));
 
     <Modal v-if="editor" :title="`${editor.id ? '编辑' : '新建'}${editor.kind === 'folder' ? '文件夹' : '书签'}`" @close="closeEditor">
       <form id="entry-form" @submit.prevent="saveEditor">
-        <p class="dialog-description">{{ editor.kind === 'folder' ? '用一个名字，整理你的收藏。' : '保存一个常用网址，随时回来。' }}</p>
+        <p v-if="editor.kind === 'bookmark'" class="dialog-description">保存一个常用网址，随时回来。</p>
         <k-list strong inset class="editor-list">
           <k-list-input label="名称"><template #input><input id="entry-title" v-model="editor.title" class="field-input" aria-label="名称" data-initial-focus placeholder="例如：灵感收集" required /></template></k-list-input>
           <k-list-input v-if="editor.kind === 'bookmark'" label="网址"><template #input><input id="entry-url" v-model="editor.url" class="field-input" aria-label="网址" type="text" inputmode="url" placeholder="example.com" required /></template></k-list-input>
