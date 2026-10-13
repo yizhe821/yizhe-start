@@ -1,7 +1,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { emptyData, validateData, type AppData } from '../domain/model';
 import { loadData, persistData, STORAGE_KEY } from '../domain/storage';
-import { supabase } from '../lib/supabase';
+import { supabase, authRedirectUrl, googleLoginEnabled } from '../lib/supabase';
 import { CLOUD_TABLE, CLOUD_SAVE_FUNCTION, CloudConflict, cloudError, parseCloudDocument } from '../domain/cloud';
 import type { User } from '@supabase/supabase-js';
 
@@ -17,6 +17,7 @@ export function useStart() {
   const saving = ref(false);
   const authenticating = ref(false);
   const authError = ref('');
+  const googleEnabled = ref(false);
   const sessionReady = ref(false);
   let revision = 0;
   let generation = 0;
@@ -85,13 +86,51 @@ export function useStart() {
     try {
       const result = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (result.error) {
-        authError.value = result.error.code === 'invalid_credentials' ? '邮箱或密码不正确。' : '登录失败，请检查网络、账号是否已验证以及邮箱登录设置。';
+        authError.value = result.error.code === 'invalid_credentials' ? '邮箱或密码不正确。' : result.error.code === 'email_not_confirmed' ? '请先打开注册邮件中的链接验证邮箱，再登录。' : '登录失败，请检查网络后重试。';
         return false;
       }
       switchUser(result.data.user);
       return true;
     } catch { authError.value = '登录失败，请检查网络后重试。'; return false; }
     finally { authenticating.value = false; }
+  }
+  async function signUp(email: string, password: string): Promise<'signed-in' | 'confirm-email' | null> {
+    if (authenticating.value || saving.value) return null;
+    authenticating.value = true; authError.value = '';
+    try {
+      const { data: result, error } = await supabase.auth.signUp({
+        email: email.trim(), password, options: { emailRedirectTo: authRedirectUrl() },
+      });
+      if (error) {
+        const messages: Record<string, string> = {
+          user_already_exists: '此邮箱已注册，请切换到登录。',
+          email_exists: '此邮箱已注册，请切换到登录。',
+          signup_disabled: '注册暂未开放，请稍后再试。',
+          weak_password: '密码不符合要求，请使用更长且包含字母、数字的密码。',
+          over_email_send_rate_limit: '验证邮件发送过于频繁，请稍后再试。',
+          over_request_rate_limit: '操作过于频繁，请稍后再试。',
+          email_address_invalid: '请填写有效的邮箱地址。',
+          email_address_not_authorized: '暂时无法向该邮箱发送验证邮件，请联系网站管理员。',
+        };
+        authError.value = messages[error.code ?? ''] ?? '注册失败，请检查网络后重试。';
+        return null;
+      }
+      if (result.session) { switchUser(result.session.user); return 'signed-in'; }
+      return 'confirm-email';
+    } catch { authError.value = '注册失败，请检查网络后重试。'; return null; }
+    finally { authenticating.value = false; }
+  }
+  async function checkLoginProviders() {
+    try { googleEnabled.value = await googleLoginEnabled(); }
+    catch { googleEnabled.value = false; }
+  }
+  async function signInWithGoogle() {
+    if (!googleEnabled.value || authenticating.value || saving.value) return;
+    authenticating.value = true; authError.value = '';
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: authRedirectUrl() } });
+      if (error) throw error;
+    } catch { authError.value = 'Google 登录暂时无法连接，请重试或使用邮箱登录。'; authenticating.value = false; }
   }
   async function signOut() {
     if (saving.value || authenticating.value) return;
@@ -147,6 +186,11 @@ export function useStart() {
   function onMedia(event: MediaQueryListEvent) { systemDark.value = event.matches; }
   function onFocus() { if (user.value) void refreshCloud(); }
   onMounted(() => {
+    const callback = new URLSearchParams(location.hash.slice(1));
+    if (callback.has('error') || callback.has('error_description')) {
+      authError.value = '登录或验证链接已失效，请重新登录或注册。';
+      history.replaceState(null, '', location.pathname + location.search);
+    }
     reload(); addEventListener('storage', onStorage); addEventListener('focus', onFocus); media.addEventListener('change', onMedia);
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => switchUser(session?.user ?? null));
     unsubscribe = () => listener.subscription.unsubscribe();
@@ -163,6 +207,6 @@ export function useStart() {
   });
   function parseImport(text: string): AppData { return validateData(JSON.parse(text)); }
   return { data, dark, toast, storageError, damagedRaw, notify, commit, parseImport,
-    user, cloudLoading, cloudReady, cloudErrorMessage, saving, authenticating, authError, sessionReady,
-    signIn, signOut, refreshCloud, localBackup };
+    user, cloudLoading, cloudReady, cloudErrorMessage, saving, authenticating, authError, sessionReady, googleEnabled,
+    signIn, signUp, signInWithGoogle, checkLoginProviders, signOut, refreshCloud, localBackup };
 }

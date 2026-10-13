@@ -8,19 +8,41 @@ import Modal from './components/Modal.vue';
 import EntryGrid from './components/EntryGrid.vue';
 import Breadcrumbs from './components/Breadcrumbs.vue';
 import { useStart } from './composables/useStart';
+import { offerPasswordSave } from './lib/passwordManager';
 import { children, deleteEntry, descendants, emptyData, engines, moveEntry, pathTo, reorderEntry, saveEntry, searchUrl, type AppData, type Appearance, type Engine, type Entry, type ParentId } from './domain/model';
 
 const { data, dark, toast, storageError, damagedRaw, notify, commit, parseImport,
-  user, cloudLoading, cloudReady, cloudErrorMessage, saving, authenticating, authError, sessionReady,
-  signIn, signOut, refreshCloud, localBackup } = useStart();
+  user, cloudLoading, cloudReady, cloudErrorMessage, saving, authenticating, authError, sessionReady, googleEnabled,
+  signIn, signUp, signInWithGoogle, checkLoginProviders, signOut, refreshCloud, localBackup } = useStart();
 const accountOpen = ref(false);
 const email = ref('');
 const password = ref('');
+const passwordConfirmation = ref('');
+const authMode = ref<'login' | 'register'>('login');
+const authNotice = ref('');
 const syncLabel = computed(() => !sessionReady.value ? '恢复登录中…' : !user.value ? '收藏保存在当前浏览器' : saving.value ? '正在保存到云端…' : cloudLoading.value ? '正在同步云端收藏…' : cloudErrorMessage.value ? '云端连接需要处理' : '收藏已连接云端');
-async function login() {
-  if (await signIn(email.value, password.value)) { password.value = ''; notify('已登录，正在读取云端收藏。'); }
+async function submitAccount() {
+  authError.value = ''; authNotice.value = '';
+  if (authMode.value === 'register' && password.value !== passwordConfirmation.value) { authError.value = '两次输入的密码不一致。'; return; }
+  // Capture values before Auth switches the rendered form to the account panel.
+  const accountEmail = email.value; const accountPassword = password.value;
+  const result = authMode.value === 'register' ? await signUp(accountEmail, accountPassword) : await signIn(accountEmail, accountPassword);
+  if (result === true || result === 'signed-in') {
+    offerPasswordSave(accountEmail, accountPassword);
+    password.value = ''; passwordConfirmation.value = '';
+    notify(authMode.value === 'register' ? '注册成功，已登录。' : '已登录，正在读取云端收藏。');
+  } else if (result === 'confirm-email') {
+    password.value = ''; passwordConfirmation.value = ''; authMode.value = 'login';
+    authNotice.value = '请查看邮箱中的验证邮件，打开链接后返回登录；已注册的邮箱可直接登录。';
+  }
 }
-function closeAccount() { if (!authenticating.value && !saving.value) { accountOpen.value = false; password.value = ''; } }
+function changeAuthMode(mode: 'login' | 'register') {
+  authMode.value = mode; authError.value = ''; authNotice.value = ''; password.value = ''; passwordConfirmation.value = '';
+  nextTick(() => document.querySelector<HTMLInputElement>('#account-email')?.focus());
+}
+function closeAccount() { if (!authenticating.value && !saving.value) { accountOpen.value = false; password.value = ''; passwordConfirmation.value = ''; } }
+watch(accountOpen, open => { if (open) void checkLoginProviders(); });
+watch(authError, error => { if (error) accountOpen.value = true; });
 const query = ref('');
 const composing = ref(false);
 const fileInput = ref<HTMLInputElement>();
@@ -208,7 +230,7 @@ watch(query, () => nextTick(labelSearch));
       <input ref="fileInput" class="sr-only" type="file" accept=".json,application/json" aria-label="导入收藏备份" tabindex="-1" @change="importFile" />
     </div>
 
-    <Modal v-if="accountOpen" :title="user ? '云端账号' : '登录云端账号'" @close="closeAccount">
+    <Modal v-if="accountOpen" :title="user ? '云端账号' : authMode === 'register' ? '注册 Yizhe Start' : '登录 Yizhe Start'" @close="closeAccount">
       <template v-if="user">
         <p class="account-email">{{ user.email }}</p>
         <p class="dialog-description">{{ syncLabel }}。登录同一账号可在不同设备使用收藏。</p>
@@ -219,15 +241,24 @@ watch(query, () => nextTick(labelSearch));
           <k-button type="button" clear :disabled="saving || authenticating" @click="signOut">退出登录</k-button>
         </div>
       </template>
-      <form v-else @submit.prevent="login">
-        <p class="dialog-description">使用已有的 Supabase 邮箱账号登录，收藏按账号独立保存。未登录时可继续使用本地收藏。</p>
-        <k-list strong inset class="editor-list">
-          <k-list-input label="邮箱"><template #input><input v-model="email" class="field-input" aria-label="邮箱" type="email" autocomplete="username" data-initial-focus required :disabled="authenticating" /></template></k-list-input>
-          <k-list-input label="密码"><template #input><input v-model="password" class="field-input" aria-label="密码" type="password" autocomplete="current-password" required :disabled="authenticating" /></template></k-list-input>
-        </k-list>
-        <p v-if="authError" class="form-error" role="alert">{{ authError }}</p>
-        <k-button type="submit" class="account-submit" :disabled="authenticating || !sessionReady">{{ authenticating ? '登录中…' : '登录并同步' }}</k-button>
-      </form>
+      <template v-else>
+        <p class="dialog-description">{{ authMode === 'register' ? '创建你的账号，在不同设备使用自己的收藏。' : '登录你的账号，让常用网站随你一起。' }}</p>
+        <div class="auth-tabs" aria-label="账号操作">
+          <button type="button" :aria-pressed="authMode === 'login'" :disabled="authenticating" @click="changeAuthMode('login')">登录</button>
+          <button type="button" :aria-pressed="authMode === 'register'" :disabled="authenticating" @click="changeAuthMode('register')">注册</button>
+        </div>
+        <form :id="authMode === 'register' ? 'signup-form' : 'login-form'" :key="authMode" method="post" autocomplete="on" @submit.prevent="submitAccount">
+          <div class="auth-fields">
+            <div class="auth-field"><label for="account-email">邮箱</label><input id="account-email" v-model="email" class="field-input" name="email" type="email" autocomplete="username" autocapitalize="none" :spellcheck="false" data-initial-focus required :readonly="authenticating" /></div>
+            <div class="auth-field"><label :for="authMode === 'register' ? 'new-password' : 'current-password'">密码</label><input :id="authMode === 'register' ? 'new-password' : 'current-password'" v-model="password" class="field-input" name="password" type="password" :autocomplete="authMode === 'register' ? 'new-password' : 'current-password'" :minlength="authMode === 'register' ? 8 : undefined" :placeholder="authMode === 'register' ? '至少 8 个字符' : ''" required :readonly="authenticating" /></div>
+            <div v-if="authMode === 'register'" class="auth-field"><label for="confirm-password">确认密码</label><input id="confirm-password" v-model="passwordConfirmation" class="field-input" name="confirm-password" type="password" autocomplete="new-password" minlength="8" required :readonly="authenticating" /></div>
+          </div>
+          <p v-if="authError" class="form-error" role="alert">{{ authError }}</p>
+          <p v-if="authNotice" class="auth-notice" role="status">{{ authNotice }}</p>
+          <k-button type="submit" class="account-submit" :disabled="authenticating || !sessionReady">{{ authenticating ? (authMode === 'register' ? '注册中…' : '登录中…') : (authMode === 'register' ? '创建账号' : '登录并同步') }}</k-button>
+        </form>
+        <template v-if="googleEnabled"><div class="auth-divider">或</div><k-button type="button" outline :disabled="authenticating || !sessionReady" @click="signInWithGoogle"><AppIcon name="google" :size="18" />使用 Google 登录</k-button></template>
+      </template>
     </Modal>
 
     <Modal v-if="folderOpen" :title="currentPath.at(-1)?.title ?? '我的收藏'" wide @close="folderOpen = false">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
-import { IconArrowUpRight, IconBookmark, IconCheck, IconCloud, IconChevronDown, IconChevronLeft, IconChevronRight, IconDownload, IconFolder, IconPlus, IconSearch, IconShieldCheck, IconSun, IconUpload, IconX } from '@tabler/icons-vue';
+import { IconArrowUpRight, IconBookmark, IconBrandGoogle, IconCheck, IconCloud, IconChevronDown, IconChevronLeft, IconChevronRight, IconDownload, IconFolder, IconPlus, IconSearch, IconShieldCheck, IconSun, IconUpload, IconX } from '@tabler/icons-vue';
 
 withDefaults(defineProps<{ name: string; size?: number }>(), { size: 20 });
 const icons: Record<string, Component> = {
@@ -19,6 +19,7 @@ const icons: Record<string, Component> = {
   bookmark: IconBookmark,
   shield: IconShieldCheck,
   cloud: IconCloud,
+  google: IconBrandGoogle,
 };
 </script>
 <template>

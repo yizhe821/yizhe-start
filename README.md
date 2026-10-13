@@ -36,7 +36,8 @@ npm run test:e2e
 - 嵌套文件夹与书签的增删改、菜单移动及同级排序。
 - 居中文件夹面板、面包屑和深层路径折叠。
 - 浅色、深色、跟随系统；支持键盘焦点与减少动画模式。
-- 未登录时收藏保存在当前浏览器；使用已有 Supabase 邮箱账号登录后，收藏和偏好按账号保存到云端，支持跨设备读取。
+- 未登录时收藏保存在当前浏览器；在网页注册或登录自己的邮箱账号后，收藏和偏好按账号保存到云端，支持跨设备读取。
+- 注册和登录表单支持浏览器密码保存与自动填充；后台启用 Google 登录后自动显示入口。
 - JSON 导出和确认导入，导入上限 10 MB；支持确认迁移本地收藏到云端。
 - 数据损坏时保留原文，可下载原始数据、导入有效备份或显式重置。
 - 同源标签页同步，写入失败保留状态与表单。
@@ -45,7 +46,7 @@ npm run test:e2e
 
 ## Supabase 配置
 
-项目已配置提供的 Supabase URL 和公开 publishable key。启用云端存储前，在该项目的 SQL Editor 执行一次 [初始化 SQL](./supabase/yizhestart_init.sql)。脚本只新增 `yizhestart_` 对象，不改动其他项目的数据或 Auth 配置。账号池由两个项目共用，本网站只提供已有账号登录。
+项目已配置提供的 Supabase URL 和公开 publishable key。启用云端存储前，在该项目的 SQL Editor 执行一次 [初始化 SQL](./supabase/yizhestart_init.sql)。脚本只新增 `yizhestart_` 对象，不改动其他项目的数据或 Auth 配置。用户直接在网页创建 Yizhe Start 账号，无需注册 Supabase 平台管理账号；身份验证由 Supabase Auth 处理。已执行初始化 SQL 的项目不需要再次执行。
 
 完整初始化步骤、权限和同步机制见 [Supabase 接入说明](./supabase/README.md)。
 

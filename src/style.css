@@ -165,6 +165,19 @@ button, a, input, select { outline-offset: 4px; }
 .account-email { margin: 0 0 12px; font-size: 15px; overflow-wrap: anywhere; }
 .account-actions { display: grid; gap: 10px; }
 .account-submit { margin-top: 20px; }
+.auth-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 18px; background: var(--surface-soft); border-radius: 12px; }
+.auth-tabs button { flex: 1; min-height: 36px; border-radius: 9px; font-size: 13px; color: var(--secondary); }
+.auth-tabs button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.auth-fields { padding: 0 16px; background: var(--surface-soft); border-radius: 14px; }
+.auth-field { padding: 12px 0 4px; }
+.auth-field + .auth-field { border-top: 1px solid var(--line); }
+.auth-field label { display: block; color: var(--secondary); font-size: 12px; }
+.auth-field .field-input:focus { outline: none; box-shadow: none; }
+.auth-field:focus-within label { color: var(--accent); }
+.auth-fields:focus-within { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent), transparent 70%); }
+.auth-notice { margin: 14px 0 0; font-size: 12px; line-height: 1.8; color: var(--secondary); }
+.auth-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--muted); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .feedback-toast { z-index: 1000 !important; pointer-events: none; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise-in { from { transform: translateY(7px) scale(.99); } to { transform: none; } }
