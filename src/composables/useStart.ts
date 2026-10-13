@@ -1,5 +1,5 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { emptyData, validateData, type AppData } from '../domain/model';
+import { emptyData, rememberSearch, validateData, type AppData, type Engine } from '../domain/model';
 import { loadData, persistData, STORAGE_KEY } from '../domain/storage';
 import { supabase, authRedirectUrl, googleLoginEnabled } from '../lib/supabase';
 import { CLOUD_TABLE, CLOUD_SAVE_FUNCTION, CloudConflict, cloudError, parseCloudDocument } from '../domain/cloud';
@@ -19,6 +19,9 @@ export function useStart() {
   const authError = ref('');
   const googleEnabled = ref(false);
   const sessionReady = ref(false);
+  const historyPending = ref(0);
+  let historyQueue: Promise<void> = Promise.resolve();
+  const historyWaits = new Set<() => void>();
   let revision = 0;
   let generation = 0;
   let disposed = false;
@@ -143,10 +146,11 @@ export function useStart() {
     } catch { notify('退出失败，请检查网络后重试。'); }
     finally { authenticating.value = false; }
   }
-  async function commit(next: AppData, reset = false): Promise<boolean> {
-    if (!sessionReady.value || saving.value || authenticating.value) { notify('正在处理，请稍后再保存。'); return false; }
+  async function commit(next: AppData, reset = false, silent = false): Promise<boolean> {
+    const report = (message: string) => { if (!silent) notify(message); };
+    if (!sessionReady.value || saving.value || authenticating.value) { report('正在处理，请稍后再保存。'); return false; }
     if (user.value) {
-      if (!cloudReady.value || cloudLoading.value) { notify('请等云端收藏加载完成，或重试连接后保存。'); return false; }
+      if (!cloudReady.value || cloudLoading.value) { report('请等云端收藏加载完成，或重试连接后保存。'); return false; }
       const token = generation;
       saving.value = true;
       try {
@@ -162,16 +166,58 @@ export function useStart() {
         if (token !== generation || disposed) return false;
         saving.value = false;
         if (error instanceof CloudConflict) await refreshCloud();
-        notify(error instanceof Error ? error.message : '保存失败，修改尚未保存。');
+        report(error instanceof Error ? error.message : '保存失败，修改尚未保存。');
         return false;
       } finally { saving.value = false; }
     }
-    if (storageError.value && !reset) { notify('请先处理本地数据异常，再保存修改。'); return false; }
+    if (storageError.value && !reset) { report('请先处理本地数据异常，再保存修改。'); return false; }
     try {
       data.value = persistData(localStorage, next);
       storageError.value = null; damagedRaw.value = null;
       return true;
-    } catch { notify('保存失败：本地存储不可用或空间不足，修改尚未保存。'); return false; }
+    } catch { report('保存失败：本地存储不可用或空间不足，修改尚未保存。'); return false; }
+  }
+  function waitForHistoryWrite(token: number): Promise<boolean> {
+    const changed = () => disposed || token !== generation;
+    const busy = () => !sessionReady.value || saving.value || authenticating.value || cloudLoading.value;
+    const ready = () => !user.value || cloudReady.value;
+    if (changed()) return Promise.resolve(false);
+    if (!busy()) return Promise.resolve(ready());
+    return new Promise(resolve => {
+      const cancel = () => finish(false);
+      const timer = setTimeout(cancel, 15000);
+      const stop = watch([sessionReady, saving, authenticating, cloudLoading, user], () => {
+        if (changed()) finish(false); else if (!busy()) finish(ready());
+      }, { flush: 'sync' });
+      function finish(ok: boolean) { clearTimeout(timer); stop(); historyWaits.delete(cancel); resolve(ok); }
+      historyWaits.add(cancel);
+    });
+  }
+  function queueHistoryChange(operation: (current: AppData) => AppData): Promise<boolean> {
+    const token = generation; historyPending.value++;
+    const result = historyQueue.then(async () => {
+      try {
+        // Rebase only the history operation on the latest document after a CAS
+        // conflict. Never retry a stale snapshot of bookmarks or preferences.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (!await waitForHistoryWrite(token)) break;
+          const next = operation(data.value);
+          if (next === data.value || await commit(next, false, true)) return true;
+          if (token !== generation || disposed) return false;
+        }
+        if (token === generation && !disposed) notify('搜索历史未能保存，请检查存储或云端连接。');
+        return false;
+      } finally { historyPending.value--; }
+    });
+    historyQueue = result.then(() => {}, () => {});
+    return result;
+  }
+  function recordSearch(query: string, engine: Engine) {
+    const searchedAt = Date.now();
+    return queueHistoryChange(current => rememberSearch(current, query, engine, searchedAt));
+  }
+  async function clearSearchHistory() {
+    if (await queueHistoryChange(current => ({ ...current, searchHistory: [] }))) notify('搜索历史已清空。');
   }
   function localBackup(): AppData {
     const result = loadData(localStorage);
@@ -202,11 +248,12 @@ export function useStart() {
     poll = setInterval(() => { if (document.visibilityState === 'visible') void refreshCloud(); }, 30000);
   });
   onUnmounted(() => {
-    disposed = true; generation++; unsubscribe?.(); clearInterval(poll); clearTimeout(timer);
+    disposed = true; generation++; historyWaits.forEach(cancel => cancel()); unsubscribe?.(); clearInterval(poll); clearTimeout(timer);
     removeEventListener('storage', onStorage); removeEventListener('focus', onFocus); media.removeEventListener('change', onMedia);
   });
   function parseImport(text: string): AppData { return validateData(JSON.parse(text)); }
   return { data, dark, toast, storageError, damagedRaw, notify, commit, parseImport,
     user, cloudLoading, cloudReady, cloudErrorMessage, saving, authenticating, authError, sessionReady, googleEnabled,
-    signIn, signUp, signInWithGoogle, checkLoginProviders, signOut, refreshCloud, localBackup };
+    signIn, signUp, signInWithGoogle, checkLoginProviders, signOut, refreshCloud, localBackup,
+    recordSearch, clearSearchHistory, historyPending };
 }

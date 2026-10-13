@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reactive } from 'vue';
-import { children, deleteEntry, emptyData, moveEntry, normalizeUrl, pathTo, reorderEntry, saveEntry, searchUrl, validateData, type AppData, type Entry } from './model';
+import { children, deleteEntry, emptyData, moveEntry, normalizeUrl, pathTo, reorderEntry, rememberSearch, saveEntry, searchUrl, validateData, type AppData, type Entry } from './model';
 import { loadData, persistData, STORAGE_KEY, type StorageLike } from './storage';
 
 const folder = (id: string, parentId: string | null = null, order = 0): Entry => ({ id, parentId, order, kind: 'folder', title: id });
@@ -99,5 +99,33 @@ describe('storage transactions', () => {
     expect(loadData(storage).data).toEqual(fixture());
     const full: StorageLike = { getItem: storage.getItem, setItem: () => { throw new Error('quota'); } };
     expect(() => persistData(full, emptyData())).toThrow('quota');
+  });
+});
+
+describe('search history', () => {
+  it('loads old documents and backups without history', () => {
+    const { searchHistory: _history, ...old } = fixture();
+    expect(validateData(old).searchHistory).toEqual([]);
+    expect(validateData(old).nodes).toEqual(old.nodes);
+  });
+  it('remembers recent searches, deduplicates and preserves the original tree', () => {
+    const original = fixture();
+    const first = rememberSearch(original, ' Vue ', 'bing', 10);
+    const second = rememberSearch(first, 'TypeScript', 'google', 20);
+    const repeated = rememberSearch(second, 'vue', 'yandex', 30);
+    expect(repeated.searchHistory).toEqual([{ query: 'vue', engine: 'yandex', searchedAt: 30 }, { query: 'TypeScript', engine: 'google', searchedAt: 20 }]);
+    expect(original.searchHistory).toEqual([]); expect(repeated.nodes).toEqual(original.nodes);
+    expect(saveEntry(repeated, { kind: 'folder', title: 'new', parentId: null }).searchHistory).toEqual(repeated.searchHistory);
+  });
+  it('keeps at most 100 terms and skips blank or oversized terms', () => {
+    let data = emptyData();
+    for (let index = 0; index < 105; index++) data = rememberSearch(data, `term-${index}`, 'bing', index);
+    expect(data.searchHistory).toHaveLength(100);
+    expect(data.searchHistory[0].query).toBe('term-104');
+    expect(rememberSearch(data, ' ', 'bing')).toBe(data);
+    expect(rememberSearch(data, 'x'.repeat(501), 'bing')).toBe(data);
+  });
+  it.each([null, [{}], [{ query: 'a', engine: 'bad', searchedAt: 1 }], [{ query: 'a', engine: 'bing', searchedAt: -1 }], [{ query: 'a', engine: 'bing', searchedAt: 1 }, { query: 'A', engine: 'bing', searchedAt: 2 }]])('rejects malformed histories', history => {
+    expect(() => validateData({ ...emptyData(), searchHistory: history })).toThrow();
   });
 });

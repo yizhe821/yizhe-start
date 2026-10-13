@@ -5,16 +5,20 @@ type BaseNode = { id: string; title: string; parentId: ParentId; order: number }
 export type Folder = BaseNode & { kind: 'folder' };
 export type Bookmark = BaseNode & { kind: 'bookmark'; url: string };
 export type Entry = Folder | Bookmark;
+export type SearchHistoryEntry = { query: string; engine: Engine; searchedAt: number };
+export const SEARCH_HISTORY_LIMIT = 100;
+export const SEARCH_QUERY_LIMIT = 500;
 export type AppData = {
   schemaVersion: 1;
   nodes: Entry[];
   preferences: { searchEngine: Engine; appearance: Appearance };
+  searchHistory: SearchHistoryEntry[];
 };
 export const engines: { id: Engine; label: string }[] = [
   { id: 'bing', label: 'Bing' }, { id: 'google', label: 'Google' }, { id: 'yandex', label: 'Yandex' },
 ];
 export function emptyData(): AppData {
-  return { schemaVersion: 1, nodes: [], preferences: { searchEngine: 'bing', appearance: 'system' } };
+  return { schemaVersion: 1, nodes: [], preferences: { searchEngine: 'bing', appearance: 'system' }, searchHistory: [] };
 }
 export function normalizeUrl(value: string): string {
   const text = value.trim();
@@ -101,7 +105,30 @@ export function validateData(value: unknown): AppData {
     }
     for (const id of visiting) done.add(id);
   }
-  return { schemaVersion: 1, nodes, preferences: { searchEngine: searchEngine as Engine, appearance: appearance as Appearance } };
+  const searchHistory = validateSearchHistory(value.searchHistory);
+  return { schemaVersion: 1, nodes, preferences: { searchEngine: searchEngine as Engine, appearance: appearance as Appearance }, searchHistory };
+}
+export function validateSearchHistory(value: unknown): SearchHistoryEntry[] {
+  // Existing local documents and cloud payloads did not contain history.
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > SEARCH_HISTORY_LIMIT) throw new Error('搜索历史格式无效。');
+  const seen = new Set<string>();
+  return value.map(item => {
+    if (!record(item) || typeof item.query !== 'string' || !item.query.trim() || item.query.trim().length > SEARCH_QUERY_LIMIT ||
+        !engines.some(engine => engine.id === item.engine) || !Number.isSafeInteger(item.searchedAt) || (item.searchedAt as number) < 0) {
+      throw new Error('搜索历史包含无效记录。');
+    }
+    const query = item.query.trim(); const key = query.toLocaleLowerCase();
+    if (seen.has(key)) throw new Error('搜索历史包含重复记录。');
+    seen.add(key);
+    return { query, engine: item.engine as Engine, searchedAt: item.searchedAt as number };
+  }).sort((a, b) => b.searchedAt - a.searchedAt);
+}
+export function rememberSearch(data: AppData, query: string, engine: Engine, searchedAt = Date.now()): AppData {
+  const text = query.trim();
+  if (!text || text.length > SEARCH_QUERY_LIMIT) return data;
+  const remaining = data.searchHistory.filter(item => item.query.toLocaleLowerCase() !== text.toLocaleLowerCase());
+  return validateData({ ...data, searchHistory: [{ query: text, engine, searchedAt }, ...remaining].slice(0, SEARCH_HISTORY_LIMIT) });
 }
 function copy(data: AppData): AppData { return { ...data, preferences: { ...data.preferences }, nodes: data.nodes.map(node => ({ ...node })) }; }
 function nextOrder(nodes: Entry[], parentId: ParentId) { return Math.max(-1, ...children(nodes, parentId).map(node => node.order)) + 1; }

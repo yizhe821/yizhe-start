@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { kApp, kButton, kDialog, kDialogButton, kList, kListInput, kListButton, kSearchbar, kToast } from 'konsta/vue';
+import { kApp, kButton, kDialog, kDialogButton, kList, kListInput, kListButton, kToast } from 'konsta/vue';
 import DateTime from './components/DateTime.vue';
-import SearchEnginePicker from './components/SearchEnginePicker.vue';
+import SearchBox from './components/SearchBox.vue';
 import AppIcon from './components/AppIcon.vue';
 import Modal from './components/Modal.vue';
 import EntryGrid from './components/EntryGrid.vue';
@@ -13,7 +13,8 @@ import { children, deleteEntry, descendants, emptyData, engines, moveEntry, path
 
 const { data, dark, toast, storageError, damagedRaw, notify, commit, parseImport,
   user, cloudLoading, cloudReady, cloudErrorMessage, saving, authenticating, authError, sessionReady, googleEnabled,
-  signIn, signUp, signInWithGoogle, checkLoginProviders, signOut, refreshCloud, localBackup } = useStart();
+  signIn, signUp, signInWithGoogle, checkLoginProviders, signOut, refreshCloud, localBackup,
+  recordSearch, clearSearchHistory, historyPending } = useStart();
 const accountOpen = ref(false);
 const email = ref('');
 const password = ref('');
@@ -43,8 +44,6 @@ function changeAuthMode(mode: 'login' | 'register') {
 function closeAccount() { if (!authenticating.value && !saving.value) { accountOpen.value = false; password.value = ''; passwordConfirmation.value = ''; } }
 watch(accountOpen, open => { if (open) void checkLoginProviders(); });
 watch(authError, error => { if (error) accountOpen.value = true; });
-const query = ref('');
-const composing = ref(false);
 const fileInput = ref<HTMLInputElement>();
 const folderOpen = ref(false);
 const activeFolder = ref<ParentId>(null);
@@ -73,7 +72,7 @@ watch(() => user.value?.id, () => {
 function migrateLocal() {
   try {
     const backup = localBackup();
-    confirmation.value = { title: '将本地收藏保存到此账号？', message: `本地有 ${backup.nodes.length} 个条目。这会替换此账号的全部云端收藏和偏好，本地原数据继续保留。建议先导出当前云端收藏。`, label: '确认迁移', action: async () => {
+    confirmation.value = { title: '将本地收藏保存到此账号？', message: `本地有 ${backup.nodes.length} 个条目。这会替换此账号的全部云端收藏、偏好和搜索历史，本地原数据继续保留。建议先导出当前云端备份。`, label: '确认迁移', action: async () => {
       if (await commit(backup)) notify('本地收藏已保存到云端，本地原数据仍保留。');
     } };
   } catch (error) { notify(error instanceof Error ? error.message : '无法读取本地收藏。'); }
@@ -102,13 +101,10 @@ function openFolder(id: string) { activeFolder.value = id; folderOpen.value = tr
 function navigateFolder(id: ParentId) { activeFolder.value = id; if (id === null) folderOpen.value = false; }
 function changeEngine(engine: Engine) { perform(() => ({ ...data.value, preferences: { ...data.value.preferences, searchEngine: engine } }), `已切换到 ${engines.find(e => e.id === engine)?.label}`); }
 function changeAppearance(event: Event) { perform(() => ({ ...data.value, preferences: { ...data.value.preferences, appearance: (event.target as HTMLSelectElement).value as Appearance } }), '外观已更新。'); }
-function submitSearch() {
-  if (composing.value) return;
-  const url = searchUrl(data.value.preferences.searchEngine, query.value);
-  if (url) window.open(url, '_blank', 'noopener,noreferrer');
-}
-function searchKey(event: KeyboardEvent) {
-  if (event.key === 'Enter' && (event.isComposing || event.keyCode === 229 || composing.value)) event.preventDefault();
+function submitSearch(query: string) {
+  const engine = data.value.preferences.searchEngine;
+  const url = searchUrl(engine, query);
+  if (url) { window.open(url, '_blank', 'noopener,noreferrer'); void recordSearch(query, engine); }
 }
 function openEditor(kind: Entry['kind'], node?: Entry) {
   actionId.value = null; editorError.value = '';
@@ -161,21 +157,13 @@ async function importFile(event: Event) {
     if (file.size > 10 * 1024 * 1024) throw new Error('备份超过 10 MB，请检查文件是否正确。');
     const imported = parseImport(await file.text());
     const folders = imported.nodes.filter(n => n.kind === 'folder').length;
-    confirmation.value = { title: '替换当前收藏？', message: `备份包含 ${folders} 个文件夹、${imported.nodes.length - folders} 个书签。导入会替换${user.value ? '此账号的云端' : '本地'}全部收藏和偏好设置。`, label: '确认导入', action: async () => {
+    confirmation.value = { title: '替换当前收藏？', message: `备份包含 ${folders} 个文件夹、${imported.nodes.length - folders} 个书签。导入会替换${user.value ? '此账号的云端' : '本地'}全部收藏、偏好和搜索历史。`, label: '确认导入', action: async () => {
       if (await commit(imported, true)) { folderOpen.value = false; activeFolder.value = null; notify('备份已导入。'); }
     } };
   } catch (error) { notify(error instanceof Error ? error.message : '无法读取该备份。'); }
 }
 function resetRequest() { confirmation.value = { title: '重置本地数据？', message: '建议先下载异常数据留作备份。确认后将创建一个空的收藏目录。', label: '重置', danger: true, action: async () => { if (await commit(emptyData(), true)) { folderOpen.value = false; activeFolder.value = null; notify('本地数据已重置。'); } } }; }
 function acceptConfirmation() { const pending = confirmation.value; confirmation.value = null; pending?.action(); }
-function inputValue(event: Event) { return (event.target as HTMLInputElement).value; }
-function labelSearch() {
-  const search = document.querySelector<HTMLInputElement>('#start-search');
-  search?.setAttribute('aria-label', '搜索关键词'); search?.setAttribute('autocomplete', 'off');
-  document.querySelector('.hero-search button')?.setAttribute('aria-label', '清空搜索');
-}
-nextTick(labelSearch);
-watch(query, () => nextTick(labelSearch));
 </script>
 
 <template>
@@ -203,13 +191,7 @@ watch(query, () => nextTick(labelSearch));
 
       <main>
         <section class="hero" aria-label="搜索与日期时间">
-          <form class="search-form" @submit.prevent="submitSearch" @keydown="searchKey" @compositionstart="composing = true" @compositionend="composing = false">
-            <div class="search-row">
-              <SearchEnginePicker :engine="data.preferences.searchEngine" @change="changeEngine" />
-              <k-searchbar class="hero-search" input-id="start-search" placeholder="想去哪里？搜索一下" :value="query" @input="query = inputValue($event)" @clear="query = ''" />
-              <k-button class="search-submit" type="submit" aria-label="搜索"><AppIcon name="arrow" :size="21" /></k-button>
-            </div>
-          </form>
+          <SearchBox :engine="data.preferences.searchEngine" :history="data.searchHistory" :history-loading="!!user && (!cloudReady || cloudLoading)" :history-busy="historyPending > 0" @change-engine="changeEngine" @search="submitSearch" @clear-history="clearSearchHistory" />
           <DateTime />
         </section>
 

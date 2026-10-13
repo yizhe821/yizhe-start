@@ -67,6 +67,36 @@ async function login(page: Page) {
   await expect(page.locator('.page-footer')).toContainText('收藏已连接云端');
 }
 
+test('search history is stored in the private cloud document and survives reload', async ({ page }) => {
+  const state = await mockCloud(page, { payload: emptyData(), revision: 1 });
+  await page.goto('./'); await login(page);
+  await page.getByRole('button', { name: '关闭面板' }).click();
+  await page.evaluate(() => { window.open = () => null; });
+  const search = page.getByLabel('搜索关键词');
+  await search.fill('云端历史'); await search.press('Enter');
+  await expect.poll(() => state.row?.payload.searchHistory[0]?.query).toBe('云端历史');
+  expect(state.row?.revision).toBe(2);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('yizhe-start:data:v1')!).searchHistory)).toEqual([]);
+  await page.reload(); await search.focus();
+  await expect(page.getByRole('option', { name: '云端历史' })).toBeVisible();
+  await page.getByRole('button', { name: '清空历史' }).click();
+  await expect.poll(() => state.row?.payload.searchHistory).toEqual([]);
+  expect(state.row?.revision).toBe(3);
+});
+
+test('history conflicts rebase on current cloud bookmarks without overwriting them', async ({ page }) => {
+  const state = await mockCloud(page, { payload: emptyData(), revision: 1 });
+  await page.goto('./'); await login(page); await page.getByRole('button', { name: '关闭面板' }).click();
+  state.row = { payload: { ...emptyData(), nodes: [{ id: 'new-cloud', kind: 'folder', title: '另一设备的目录', parentId: null, order: 0 }], searchHistory: [{ query: '其他设备的搜索', engine: 'bing', searchedAt: 1 }] }, revision: 2 };
+  await page.evaluate(() => { window.open = () => null; });
+  await page.getByLabel('搜索关键词').fill('当前设备的搜索');
+  await page.getByLabel('搜索关键词').press('Enter');
+  await expect.poll(() => state.row?.revision).toBe(3);
+  expect(state.row?.payload.nodes[0].title).toBe('另一设备的目录');
+  expect(state.row?.payload.searchHistory.map(item => item.query)).toEqual(['当前设备的搜索', '其他设备的搜索']);
+  expect(state.saveCalls).toBe(2);
+});
+
 test('cloud login, explicit local migration, reload and scoped logout preserve local data', async ({ page }) => {
   const state = await mockCloud(page, null);
   await page.goto('./');

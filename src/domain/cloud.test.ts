@@ -43,7 +43,7 @@ describe('isolated PostgreSQL migration and permissions', () => {
   }
   const save = (revision: number, title: string) => db.query<{ revision: number }>(
     'select revision from public.yizhestart_save_document($1::jsonb, $2)',
-    [JSON.stringify({ ...emptyData(), nodes: [{ id: 'one', kind: 'folder', title, parentId: null, order: 0 }] }), revision],
+    [JSON.stringify({ ...emptyData(), nodes: [{ id: 'one', kind: 'folder', title, parentId: null, order: 0 }], searchHistory: [{ query: title, engine: 'bing', searchedAt: 1 }] }), revision],
   );
   it('allows authenticated owners to save atomically and rejects stale writes', async () => {
     await identity(a);
@@ -51,8 +51,9 @@ describe('isolated PostgreSQL migration and permissions', () => {
     expect((await save(1, 'updated A')).rows[0].revision).toBe(2);
     await expect(save(1, 'stale A')).rejects.toMatchObject({ code: '40001' });
     await expect(save(0, 'duplicate A')).rejects.toMatchObject({ code: '40001' });
-    const result = await db.query<{ payload: { nodes: { title: string }[] } }>('select payload from public.yizhestart_documents');
+    const result = await db.query<{ payload: { nodes: { title: string }[]; searchHistory: { query: string }[] } }>('select payload from public.yizhestart_documents');
     expect(result.rows[0].payload.nodes[0].title).toBe('updated A');
+    expect(result.rows[0].payload.searchHistory[0].query).toBe('updated A');
   });
   it('isolates accounts and prevents writes that bypass the save function', async () => {
     await identity(b);
