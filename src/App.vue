@@ -8,6 +8,7 @@ import Modal from './components/Modal.vue';
 import EntryGrid from './components/EntryGrid.vue';
 import Breadcrumbs from './components/Breadcrumbs.vue';
 import { useStart } from './composables/useStart';
+import { useDailyWallpaper } from './composables/useDailyWallpaper';
 import { offerPasswordSave } from './lib/passwordManager';
 import { children, deleteEntry, descendants, emptyData, engines, moveEntry, pathTo, reorderEntry, saveEntry, searchUrl, type AppData, type Appearance, type Engine, type Entry, type ParentId } from './domain/model';
 
@@ -16,6 +17,7 @@ const { data, dark, toast, storageError, damagedRaw, notify, commit, parseImport
   signIn, signUp, signInWithGoogle, checkLoginProviders, signOut, refreshCloud, localBackup,
   recordSearch, clearSearchHistory, historyPending } = useStart();
 const accountOpen = ref(false);
+const { wallpaper } = useDailyWallpaper();
 const email = ref('');
 const password = ref('');
 const passwordConfirmation = ref('');
@@ -168,13 +170,14 @@ function acceptConfirmation() { const pending = confirmation.value; confirmation
 
 <template>
   <k-app theme="ios" :dark="dark" :ios-hover-highlight="false" class="start-app">
+    <div class="wallpaper-layer" aria-hidden="true"><img v-if="wallpaper" class="wallpaper-image" :src="wallpaper.imageUrl" alt="" referrerpolicy="no-referrer" /><div class="wallpaper-shade"></div></div>
     <div class="page-shell">
       <header class="topbar">
         <a id="home-link" href="#" class="brand" @click.prevent="folderOpen = false"><span class="brand-mark">y<span>·</span></span><span>Yizhe<span class="brand-secondary"> / Start</span></span></a>
         <div class="topbar-actions">
           <label class="theme-control"><AppIcon name="sun" :size="17" /><span class="sr-only">外观主题</span><select :value="data.preferences.appearance" aria-label="外观主题" @change="changeAppearance"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
-          <button type="button" class="toolbar-button" @click="fileInput?.click()"><AppIcon name="download" :size="17" /><span>导入</span></button>
-          <button type="button" class="toolbar-button" @click="exportData"><AppIcon name="upload" :size="17" /><span>导出</span></button>
+          <button type="button" class="toolbar-button" aria-label="导入" @click="fileInput?.click()"><AppIcon name="download" :size="17" /><span>导入</span></button>
+          <button type="button" class="toolbar-button" aria-label="导出" @click="exportData"><AppIcon name="upload" :size="17" /><span>导出</span></button>
           <button type="button" class="toolbar-button account-button" @click="accountOpen = true" :aria-label="user ? '管理云端账号' : '登录云端账号'"><AppIcon name="cloud" :size="17" /><span>{{ user ? '账号' : '登录' }}</span></button>
         </div>
       </header>
@@ -209,6 +212,7 @@ function acceptConfirmation() { const pending = confirmation.value; confirmation
         </section>
       </main>
       <footer class="page-footer"><span aria-live="polite"><AppIcon :name="user ? 'cloud' : 'shield'" :size="14" />{{ syncLabel }}</span><span>{{ stats.folders }} 个文件夹<span class="footer-dot">·</span>{{ stats.bookmarks }} 个书签</span></footer>
+      <a v-if="wallpaper" class="wallpaper-credit" :href="wallpaper.link" target="_blank" rel="noopener noreferrer"><AppIcon name="image" :size="14" /><span><strong>Bing 每日壁纸 · {{ wallpaper.title }}</strong><span>{{ wallpaper.copyright }}</span></span><AppIcon name="arrow" :size="14" /></a>
       <input ref="fileInput" class="sr-only" type="file" accept=".json,application/json" aria-label="导入收藏备份" tabindex="-1" @change="importFile" />
     </div>
 

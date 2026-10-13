@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { emptyData } from '../src/domain/model';
+test.beforeEach(async ({ context }) => {
+  await context.route('**/bing-wallpaper.json?**', route => route.fulfill({ json: {} }));
+});
 
 async function setup(page: Page) {
   await page.addInitScript(data => {

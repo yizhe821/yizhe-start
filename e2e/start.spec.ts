@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
 test.use({ timezoneId: 'Asia/Shanghai' });
+test.beforeEach(async ({ context }) => {
+  await context.route('**/bing-wallpaper.json?**', route => route.fulfill({ json: {} }));
+});
 
 async function createFolder(page: Page, title: string) {
   await page.getByRole('button', { name: '新建文件夹', exact: true }).click();

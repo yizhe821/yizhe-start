@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { emptyData, type AppData } from '../src/domain/model';
+test.beforeEach(async ({ context }) => {
+  await context.route('**/bing-wallpaper.json?**', route => route.fulfill({ json: {} }));
+});
 
 const userId = '00000000-0000-4000-8000-000000000001';
 const localData: AppData = { ...emptyData(), nodes: [{ id: 'local', kind: 'folder', title: '本地收藏', parentId: null, order: 0 }] };

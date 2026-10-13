@@ -36,6 +36,7 @@ npm run test:e2e
 - 嵌套文件夹与书签的增删改、菜单移动及同级排序。
 - 居中文件夹面板、面包屑和深层路径折叠。
 - 浅色、深色、跟随系统；支持键盘焦点与减少动画模式。
+- Bing 每日壁纸，带图片标题和来源署名；搜索框、时钟、收藏卡片和弹层采用适配明暗主题的磨砂材质。图片加载失败时回退为柔和渐变。
 - 未登录时收藏保存在当前浏览器；在网页注册或登录自己的邮箱账号后，收藏和偏好按账号保存到云端，支持跨设备读取。
 - 注册和登录表单支持浏览器密码保存与自动填充；后台启用 Google 登录后自动显示入口。
 - 搜索框聚焦且为空时显示最近搜索；输入时刷新联想，列表贴着输入框浮动展开。支持上下键选择、Enter 搜索、Escape 关闭。
@@ -51,6 +52,12 @@ npm run test:e2e
 项目已配置提供的 Supabase URL 和公开 publishable key。启用云端存储前，在该项目的 SQL Editor 执行一次 [初始化 SQL](./supabase/yizhestart_init.sql)。脚本只新增 `yizhestart_` 对象，不改动其他项目的数据或 Auth 配置。用户直接在网页创建 Yizhe Start 账号，无需注册 Supabase 平台管理账号；身份验证由 Supabase Auth 处理。已执行初始化 SQL 的项目不需要再次执行。
 
 完整初始化步骤、权限和同步机制见 [Supabase 接入说明](./supabase/README.md)。
+
+## 每日壁纸
+
+发布前执行 `npm run wallpaper:update`，从 Bing 获取当天图片信息，仅保存 URL、标题和署名，图片直接从 Bing 加载。GitHub Pages 工作流每 4 小时自动刷新一次并发布；已打开的页面每 30 分钟及重新可见时检查更新，新图预加载成功后切换。元数据或图片请求失败不会阻断搜索和收藏。
+
+本地开发可先运行 `npm run wallpaper:update`，再运行 `npm run dev`；仓库附带一个有效的图片信息快照用于网络不可用时回退。不需要修改 Supabase 表或执行新 SQL。
 
 ## GitHub Pages
 
