@@ -9,16 +9,17 @@
   background: #eaf0f2;
   color-scheme: light;
   --page-bg: #eaf0f2;
-  --surface: rgba(255, 255, 255, .72);
-  --surface-strong: rgba(252, 254, 255, .94);
+  --surface: rgba(255, 255, 255, .5);
+  --surface-strong: rgba(252, 254, 255, .72);
+  --surface-solid: #fcfeff;
   --text: #22343d;
   --muted: #506772;
   --secondary: #455e6b;
   --line: rgba(255, 255, 255, .62);
   --accent: #007aff;
-  --surface-soft: rgba(229, 239, 244, .67);
+  --surface-soft: rgba(229, 239, 244, .45);
   --shadow: 0 10px 30px rgba(31, 56, 69, .09), inset 0 1px 0 rgba(255, 255, 255, .6);
-  --glass-filter: blur(18px) saturate(1.15);
+  --glass-filter: blur(14px);
   --text-lift: 0 1px 1px rgba(255, 255, 255, .48);
 }
 :root.dark {
@@ -26,14 +27,15 @@
   color: #f1f1f5;
   background: #112028;
   --page-bg: #112028;
-  --surface: rgba(18, 34, 43, .77);
-  --surface-strong: rgba(20, 35, 45, .95);
+  --surface: rgba(18, 34, 43, .5);
+  --surface-strong: rgba(20, 35, 45, .74);
+  --surface-solid: #14232d;
   --text: #f1f1f5;
   --muted: #b0c1cb;
   --secondary: #d0dce3;
   --line: rgba(218, 238, 249, .17);
   --accent: #0a84ff;
-  --surface-soft: rgba(47, 66, 79, .63);
+  --surface-soft: rgba(47, 66, 79, .45);
   --shadow: 0 10px 30px rgba(0, 8, 14, .19), inset 0 1px 0 rgba(236, 248, 255, .08);
   --text-lift: 0 1px 2px rgba(0, 0, 0, .25);
 }
@@ -49,9 +51,7 @@ button, a, input, select { outline-offset: 4px; }
 .start-app { position: relative; isolation: isolate; background: transparent !important; color: var(--text); min-height: 100svh; }
 .wallpaper-layer { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse at 12% 15%, #cde3ea 0, transparent 60%), radial-gradient(ellipse at 85% 70%, #cbdad0 0, transparent 65%), #edf2f4; }
 .dark .wallpaper-layer { background: radial-gradient(ellipse at 12% 15%, #1b3b47 0, transparent 60%), radial-gradient(ellipse at 85% 70%, #203d33 0, transparent 65%), #112028; }
-.wallpaper-image { width: 100%; height: 100%; object-fit: cover; object-position: center; filter: saturate(.9); animation: wallpaper-in 700ms ease; }
-.wallpaper-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(244, 248, 250, .46), rgba(235, 243, 246, .34) 45%, rgba(238, 244, 247, .72)); }
-.dark .wallpaper-shade { background: linear-gradient(180deg, rgba(9, 22, 30, .62), rgba(12, 28, 38, .45) 45%, rgba(10, 24, 34, .78)); }
+.wallpaper-image { width: 100%; height: 100%; object-fit: cover; object-position: center; animation: wallpaper-in 700ms ease; }
 .page-shell { position: relative; width: min(100%, 1104px); margin: 0 auto; padding: 0 32px 24px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 96px; }
 .brand { display: inline-flex; align-items: center; gap: 11px; font-size: 15px; font-weight: 650; letter-spacing: -.4px; white-space: nowrap; }
@@ -207,7 +207,9 @@ button, a, input, select { outline-offset: 4px; }
 /* Frosted controls keep changing photographs readable in both appearances. */
 .brand { text-shadow: var(--text-lift); }
 .brand-mark { background: var(--surface-strong); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow); }
-.theme-control option { background: var(--surface-strong); color: var(--text); }
+.wallpaper-ready .brand, .wallpaper-ready .brand-secondary, .wallpaper-ready .collection h2, .wallpaper-ready .section-eyebrow { color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, .8), 0 2px 12px rgba(0, 0, 0, .35); }
+.wallpaper-ready .count-badge { color: var(--text); background: var(--surface); backdrop-filter: var(--glass-filter); text-shadow: none; border: 1px solid var(--line); }
+.theme-control option { background: var(--surface-solid); color: var(--text); }
 .analog-clock { width: 64px; }
 .search-row { border-radius: 22px; border-color: var(--line); backdrop-filter: var(--glass-filter); box-shadow: var(--shadow); }
 .search-panel { border-radius: 0 0 22px 22px; background: var(--surface-strong); backdrop-filter: var(--glass-filter); box-shadow: 0 16px 32px rgba(24, 45, 56, .15); }
@@ -215,11 +217,12 @@ button, a, input, select { outline-offset: 4px; }
 .collection h2, .section-eyebrow { text-shadow: var(--text-lift); }
 .section-eyebrow { color: var(--secondary); }
 .new-folder { backdrop-filter: var(--glass-filter); }
-.home-empty { background: color-mix(in srgb, var(--surface), transparent 24%); }
+.home-empty { background: var(--surface); }
 .entry-card { border-color: var(--line); border-radius: 22px; backdrop-filter: var(--glass-filter); }
 .entry-main { border-radius: 22px; }
 .modal-layer:not(.bare-layer) { background: rgba(16, 32, 43, .24); backdrop-filter: blur(10px); }
-.modal-surface { border: 1px solid var(--line); border-radius: 28px; background: var(--surface-strong); backdrop-filter: blur(30px); box-shadow: 0 25px 90px rgba(8, 29, 42, .24); }
+.modal-surface { border: 1px solid var(--line); border-radius: 28px; background: var(--surface-strong); backdrop-filter: var(--glass-filter); box-shadow: 0 25px 90px rgba(8, 29, 42, .24); }
+.path-menu { background: var(--surface-strong); backdrop-filter: var(--glass-filter); }
 .storage-warning { background: var(--surface-strong); border-radius: 20px; }
 .wallpaper-credit { display: flex; align-items: center; gap: 9px; width: fit-content; max-width: 100%; margin-bottom: 24px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); backdrop-filter: var(--glass-filter); color: var(--secondary); font-size: 10px; line-height: 1.6; }
 .wallpaper-credit > span { min-width: 0; }
@@ -277,5 +280,5 @@ button, a, input, select { outline-offset: 4px; }
 }
 @supports not (backdrop-filter: blur(4px)) {
   .modal-layer:not(.bare-layer) { background: rgba(20, 22, 35, .45); }
-  .search-row, .search-panel, .entry-card, .home-empty, .topbar-actions, .date-time, .page-footer, .wallpaper-credit, .modal-surface { background: var(--surface-strong); }
+  .search-row, .search-panel, .entry-card, .home-empty, .topbar-actions, .date-time, .page-footer, .wallpaper-credit, .modal-surface, .engine-options, .path-menu, .feedback-toast > div { background: var(--surface-solid) !important; }
 }

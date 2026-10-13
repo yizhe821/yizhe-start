@@ -14,6 +14,11 @@ test('wallpaper loads with attribution and frosted controls stay usable in both 
     await page.setViewportSize({ width, height: 900 });
     for (const theme of ['light', 'dark']) {
       await page.getByLabel('外观主题').selectOption(theme);
+      await expect(page.locator('.wallpaper-image')).toHaveCSS('filter', 'none');
+      await expect(page.locator('.wallpaper-image')).toHaveCSS('opacity', '1');
+      await expect(page.locator('.wallpaper-shade')).toHaveCount(0);
+      await expect(page.locator('.home-empty')).toHaveCSS('backdrop-filter', /blur/);
+      await expect(page.locator('.home-empty')).toHaveCSS('background-color', theme === 'dark' ? 'rgba(18, 34, 43, 0.5)' : 'rgba(255, 255, 255, 0.5)');
       await expect(page.locator('.feedback-toast > div')).toHaveCSS('color', theme === 'dark' ? 'rgb(241, 241, 245)' : 'rgb(34, 52, 61)');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.getByRole('button', { name: '新建文件夹', exact: true }).click();

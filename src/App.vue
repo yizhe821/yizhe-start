@@ -169,8 +169,8 @@ function acceptConfirmation() { const pending = confirmation.value; confirmation
 </script>
 
 <template>
-  <k-app theme="ios" :dark="dark" :ios-hover-highlight="false" class="start-app">
-    <div class="wallpaper-layer" aria-hidden="true"><img v-if="wallpaper" class="wallpaper-image" :src="wallpaper.imageUrl" alt="" referrerpolicy="no-referrer" /><div class="wallpaper-shade"></div></div>
+  <k-app theme="ios" :dark="dark" :ios-hover-highlight="false" class="start-app" :class="{ 'wallpaper-ready': wallpaper }">
+    <div class="wallpaper-layer" aria-hidden="true"><img v-if="wallpaper" class="wallpaper-image" :src="wallpaper.imageUrl" alt="" referrerpolicy="no-referrer" /></div>
     <div class="page-shell">
       <header class="topbar">
         <a id="home-link" href="#" class="brand" @click.prevent="folderOpen = false"><span class="brand-mark">y<span>·</span></span><span>Yizhe<span class="brand-secondary"> / Start</span></span></a>
